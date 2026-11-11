@@ -1,0 +1,138 @@
+# Levanta todo el sistema:  docker compose up --build
+# Requiere el archivo .env (copia .env.example a .env).
+#
+#   Navegador -> frontend (5173) -> gateway (8080) -> usuarios / catalogo / pedidos / citas -> MySQL
+#
+# Solo se publican dos puertos: el frontend y el Gateway. Los microservicios y la base de
+# datos quedan dentro de la red interna de Docker y no son accesibles desde el navegador.
+
+# Variables que comparten los cuatro microservicios
+x-servicio: &servicio
+  restart: unless-stopped
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+x-entorno: &entorno
+  SPRING_PROFILES_ACTIVE: mysql
+  JWT_ISSUER: sanmarcos-usuarios
+  AUTH_JWKS_URL: http://usuarios:8081/api/v1/auth/jwks
+  GATEWAY_URL: http://localhost:8080
+  INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Copia .env.example a .env}
+
+services:
+  # Un servidor MySQL con una base y un usuario distinto por microservicio
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Copia .env.example a .env}
+      DB_USUARIOS_PASSWORD: ${DB_USUARIOS_PASSWORD}
+      DB_CATALOGO_PASSWORD: ${DB_CATALOGO_PASSWORD}
+      DB_PEDIDOS_PASSWORD: ${DB_PEDIDOS_PASSWORD}
+      DB_CITAS_PASSWORD: ${DB_CITAS_PASSWORD}
+    volumes:
+      - mysql-datos:/var/lib/mysql
+      - ./backend/sql/00_crear_bases_docker.sh:/docker-entrypoint-initdb.d/00_crear_bases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
+
+  usuarios:
+    <<: *servicio
+    build:
+      context: ./backend
+      args:
+        MODULE: usuarios
+    environment:
+      <<: *entorno
+      PORT: 8081
+      DB_URL: jdbc:mysql://mysql:3306/sanmarcos_usuarios?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USER: sm_usuarios
+      DB_PASSWORD: ${DB_USUARIOS_PASSWORD}
+      KEYS_DIRECTORY: /app/data/keys
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      VENDEDOR_PASSWORD: ${VENDEDOR_PASSWORD}
+      CLIENTE_PASSWORD: ${CLIENTE_PASSWORD}
+    volumes:
+      # Conserva las claves RSA: los tokens siguen siendo válidos tras reiniciar
+      - claves-jwt:/app/data
+
+  catalogo:
+    <<: *servicio
+    build:
+      context: ./backend
+      args:
+        MODULE: catalogo
+    environment:
+      <<: *entorno
+      PORT: 8082
+      DB_URL: jdbc:mysql://mysql:3306/sanmarcos_catalogo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USER: sm_catalogo
+      DB_PASSWORD: ${DB_CATALOGO_PASSWORD}
+
+  pedidos:
+    <<: *servicio
+    build:
+      context: ./backend
+      args:
+        MODULE: pedidos
+    environment:
+      <<: *entorno
+      PORT: 8083
+      DB_URL: jdbc:mysql://mysql:3306/sanmarcos_pedidos?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USER: sm_pedidos
+      DB_PASSWORD: ${DB_PEDIDOS_PASSWORD}
+      # Comunicación interna entre servicios: por el nombre del contenedor, sin pasar por el Gateway
+      CATALOGO_URL: http://catalogo:8082
+
+  citas:
+    <<: *servicio
+    build:
+      context: ./backend
+      args:
+        MODULE: citas
+    environment:
+      <<: *entorno
+      PORT: 8084
+      DB_URL: jdbc:mysql://mysql:3306/sanmarcos_citas?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USER: sm_citas
+      DB_PASSWORD: ${DB_CITAS_PASSWORD}
+
+  gateway:
+    restart: unless-stopped
+    build:
+      context: ./backend
+      args:
+        MODULE: gateway
+    environment:
+      USUARIOS_URL: http://usuarios:8081
+      CATALOGO_URL: http://catalogo:8082
+      PEDIDOS_URL: http://pedidos:8083
+      CITAS_URL: http://citas:8084
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - usuarios
+      - catalogo
+      - pedidos
+      - citas
+
+  frontend:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8080/api/v1
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway
+
+volumes:
+  mysql-datos:
+  claves-jwt:

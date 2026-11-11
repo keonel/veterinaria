@@ -1,0 +1,18 @@
+# Compilados
+**/target/
+
+# Bases H2 locales y claves RSA (nunca se suben)
+**/data/
+*.pk8
+*.der
+*.mv.db
+*.trace.db
+
+# Secretos
+.env
+
+# Editores y logs
+.idea/
+.vscode/
+*.iml
+*.log

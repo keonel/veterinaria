@@ -1,0 +1,12 @@
+**/target/
+**/node_modules/
+**/dist/
+**/coverage/
+backend/**/data/
+.run/
+.env
+frontend/.env
+*.log
+*.pk8
+*.der
+.idea/

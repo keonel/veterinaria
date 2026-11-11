@@ -1,0 +1,28 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: gateway
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+# Swagger agregado: una sola página con la documentación de los cuatro microservicios
+springdoc:
+  swagger-ui:
+    urls:
+      - name: Usuarios y autenticación
+        url: /openapi/usuarios
+      - name: Catálogo de productos
+        url: /openapi/catalogo
+      - name: Pedidos
+        url: /openapi/pedidos
+      - name: Citas y mensajes
+        url: /openapi/citas
+app:
+  usuarios-url: ${USUARIOS_URL:http://localhost:8081}
+  catalogo-url: ${CATALOGO_URL:http://localhost:8082}
+  pedidos-url: ${PEDIDOS_URL:http://localhost:8083}
+  citas-url: ${CITAS_URL:http://localhost:8084}
+  allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}

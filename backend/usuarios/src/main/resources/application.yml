@@ -1,0 +1,26 @@
+server:
+  port: ${PORT:8081}
+spring:
+  application:
+    name: usuarios
+  profiles:
+    # h2 = desarrollo local sin instalar nada. mysql = Docker o MySQL local.
+    default: h2
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  issuer: ${JWT_ISSUER:sanmarcos-usuarios}
+  gateway-url: ${GATEWAY_URL:http://localhost:8080}
+  keys-directory: ${KEYS_DIRECTORY:./data/keys}
+  cookie-secure: ${COOKIE_SECURE:false}
+  access-seconds: ${ACCESS_TOKEN_SECONDS:900}
+  admin-password: ${ADMIN_PASSWORD:Admin1234}
+  vendedor-password: ${VENDEDOR_PASSWORD:Vende1234}
+  cliente-password: ${CLIENTE_PASSWORD:Cliente123}
